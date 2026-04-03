@@ -1,0 +1,35 @@
+name: Steam Images Scraper
+
+on:
+  workflow_dispatch: # تشغيل يدوي من زرار Actions
+  schedule:
+    - cron: '0 */6 * * *' # يشتغل كل 6 ساعات أوتوماتيك عشان يخلص الـ 1700 لعبة بالراحة
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # صلاحية الكتابة والرفع على الريبو
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python_version: '3.9'
+
+      - name: Install Dependencies
+        run: pip install requests
+
+      - name: Run Scraper
+        run: python scripts/downloader.py
+
+      - name: Commit and Push Changes
+        run: |
+          git config --global user.name "Alpha-Bot"
+          git config --global user.email "alpha@bot.com"
+          git add game_images/ missing_images.txt
+          git commit -m "Add new game screenshots [Automated]" || echo "No changes to commit"
+          git push
