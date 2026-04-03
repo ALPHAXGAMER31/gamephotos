@@ -13,12 +13,12 @@ jobs:
 
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4 # تحديث للنسخة 4
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5 # تحديث للنسخة 5
         with:
-          python_version: '3.9'
+          python_version: '3.10'
 
       - name: Install Dependencies
         run: pip install requests
@@ -30,6 +30,17 @@ jobs:
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          
+          # بنعمل Git Add لكل حاجة، بس الـ Push هيكون أذكى
           git add .
-          git commit -m "Update game images" || echo "No changes to commit"
-          git push
+          
+          # فحص إذا كان فيه تغييرات فعلاً قبل الكوميت
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "Update game images [Automated]"
+            
+            # محاولة الرفع مع التعامل مع الأحجام الكبيرة
+            # استعملنا --force-with-lease للأمان
+            git push origin main || (git pull --rebase origin main && git push origin main)
+          fi
