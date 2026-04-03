@@ -3,69 +3,68 @@ import requests
 import re
 from concurrent.futures import ThreadPoolExecutor
 
-# القائمة التي وضعتها أنت في الرسالة
-GAMES_LIST = """
-Among Us VR
-BLADENET
-... (ضع باقي الألعاب هنا) ...
-"""
-
-IMAGE_FOLDER = "STEAM_GAMES_COLLECTION"
-MISSING_FILE = "failed_to_find.txt"
+# تأكد أن ملف FINAL_GAMES_WITH_URLS.txt موجود في نفس الفولدر
+INPUT_FILE = "FINAL_GAMES_WITH_URLS.txt"
+IMAGE_FOLDER = "FULL_GAME_IMAGES"
 
 def get_steam_app_id(game_name):
-    url = f"https://store.steampowered.com/api/storesearch/?term={game_name}&l=english&cc=US"
+    search_url = f"https://store.steampowered.com/api/storesearch/?term={game_name}&l=english&cc=US"
     try:
-        r = requests.get(url, timeout=5).json()
-        if r.get("total") > 0:
-            return r["items"][0]["id"]
+        response = requests.get(search_url, timeout=5)
+        data = response.json()
+        if data.get("total") > 0:
+            return data["items"][0]["id"]
     except: pass
     return None
 
-def get_images(app_id):
+def get_steam_images(app_id):
     url = f"https://store.steampowered.com/api/appdetails?appids={app_id}"
     try:
-        r = requests.get(url, timeout=5).json()
-        if str(app_id) in r and r[str(app_id)]["success"]:
-            imgs = r[str(app_id)]["data"].get("screenshots", [])
-            return [i["path_full"] for i in imgs[:4]]
+        response = requests.get(url, timeout=5)
+        data = response.json()
+        if str(app_id) in data and data[str(app_id)]["success"]:
+            game_data = data[str(app_id)]["data"]
+            screenshots = game_data.get("screenshots", [])
+            return [s["path_full"] for s in screenshots[:4]]
     except: pass
     return []
 
-def download_task(game):
-    game = game.strip()
-    if not game: return
-    
-    safe_name = re.sub(r'[\\/*?:"<>|]', '_', game)
-    path = os.path.join(IMAGE_FOLDER, safe_name)
-    
-    if os.path.exists(path): return # متواجد مسبقاً
-    
-    app_id = get_steam_app_id(game)
+def download_game_images(game_name):
+    game_name = game_name.strip()
+    if not game_name: return
+
+    safe_name = re.sub(r'[\\/*?:"<>|]', '_', game_name)
+    folder_path = os.path.join(IMAGE_FOLDER, safe_name)
+
+    if os.path.exists(folder_path): return
+
+    app_id = get_steam_app_id(game_name)
     if app_id:
-        urls = get_images(app_id)
-        if urls:
-            os.makedirs(path, exist_ok=True)
-            for i, u in enumerate(urls):
+        img_urls = get_steam_images(app_id)
+        if img_urls:
+            os.makedirs(folder_path, exist_ok=True)
+            for i, url in enumerate(img_urls):
                 try:
-                    data = requests.get(u, timeout=10).content
-                    with open(os.path.join(path, f"image_{i+1}.jpg"), "wb") as f:
-                        f.write(data)
+                    img_data = requests.get(url, timeout=10).content
+                    with open(os.path.join(folder_path, f"ss_{i+1}.jpg"), "wb") as f:
+                        f.write(img_data)
                 except: continue
-            print(f"DONE: {game}")
-            return
-    
-    with open(MISSING_FILE, "a") as f:
-        f.write(game + "\n")
-    print(f"FAIL: {game}")
+            print(f"✅ DONE: {game_name}")
+        else: print(f"❌ NO IMAGES: {game_name}")
+    else: print(f"⚠️ NOT FOUND ON STEAM: {game_name}")
 
 def run():
     if not os.path.exists(IMAGE_FOLDER): os.makedirs(IMAGE_FOLDER)
-    games = [g for g in GAMES_LIST.split('\n') if g.strip()]
     
-    # 20 خيط معالجة لجعل التحميل طيارة
+    # قراءة الألعاب من الملف مباشرة
+    with open(INPUT_FILE, "r", encoding="utf-8") as f:
+        games = [line.split(" = ")[0].strip() for line in f if " = " in line]
+
+    print(f"🚀 Starting download for {len(games)} games...")
+    
+    # تشغيل 20 لعبة في نفس الوقت للسرعة القصوى
     with ThreadPoolExecutor(max_workers=20) as executor:
-        executor.map(download_task, games)
+        executor.map(download_game_images, games)
 
 if __name__ == "__main__":
     run()
